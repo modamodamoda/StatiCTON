@@ -82,10 +82,10 @@ class Template {
 // -- Query class --
 class Query {
     constructor(pages) {
-        this.pages = pages;
+        this.pages = Object.values(pages);
     }
     where(smt) {
-        this.pages = Object.values(this.pages).filter( smt )
+        this.pages = this.pages.filter( smt )
         return this;
     }
     sort(smt) {
