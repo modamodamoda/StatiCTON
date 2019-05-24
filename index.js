@@ -79,14 +79,26 @@ class Template {
         
     }
 }
-
+// -- Query class --
+class Query {
+    constructor(pages) {
+        this.pages = pages;
+    }
+    where(smt) {
+        this.pages = Object.values(this.pages).filter( smt )
+        return this;
+    }
+    sort(smt) {
+        this.pages = this.pages.sort(smt);
+        return this;
+    }
+}
 // -- Item Class --
 class Item {
     constructor(parent, href, data, type) {
         this.parent = parent;
         if(href.substr(-3) == '.md') {
-            // this is a .md file, let's make it a .html file
-            href = href.substr(0, href.length - 3) + '.html';
+            href = href.substr(0, href.length - 3) + '.html'; // this is a .md file, let's make it a .html file
         }
         this.href = href;
         data = data.toString();
@@ -114,23 +126,20 @@ class Item {
             else this.parent.attributes[i][this.config[i]].push(this);
         }
         this.type = type; // Markdown or HTML
-        if(this.type == 'md') {
-            // render content from markdown
+        if(this.type == 'md') { // render content from markdown
             this.content = converter.makeHtml(this.content);
         }
     }
     render(options = {}, children = null, first = true) {
-        if(first) options = Object.assign(options, { href: this.href, headTitle: this.parent.config.titleBase.replace('%title', this.config.title) }, this.config); // defaults (need to be passed to parent)
+        if(first) options = Object.assign(options, { href: this.href, page: this.config }); // defaults (need to be passed to parent)
 
         let s = Template.compile(this.content).apply(Object.assign(this.parent.config, options, { children: children }));
         if(this.hasConfig && this.config.parent) {
-            // render within parent
-            return this.parent.items[this.config.parent].render(options, s, false);
+            return this.parent.items[this.config.parent].render(options, s, false); // render within parent
         } else
             return s; // Just return as-is
     }
 }
-
 // -- The actual stuff
 var Render = module.exports = class {
     constructor(dir) {
@@ -144,13 +153,24 @@ var Render = module.exports = class {
                 let base = (this.config.urlBase ? this.config.urlBase : '') + relative;
                 let parts = base.split('/');
                 let baseName = parts.pop();
-                if(baseName == 'index.html') {
-                    // this is the index.html route
-                    base = parts.join('/') + '/';
+                if(baseName == 'index.html') { 
+                    base = parts.join('/') + '/'; // this is the index.html route
                 }
                 return base;
+            },
+            headTitle: (appendix) => {
+                return this.config.titleBase.replace('%title', appendix);
+            },
+            where: (v, smt) => {
+                let q = new Query(v);
+                return q.where(smt);
+            },
+            sort: (v, smt) => {
+                let q = new Query(v);
+                return q.sort(smt);
             }
         };
+        this.macros = [];
     }
     // loadConfig() loads the conifg
     loadConfig() {
@@ -173,7 +193,6 @@ var Render = module.exports = class {
             }
         }
         // -- Process macros
- 
         for(let g of this.config.macros) {
             if(g.attribute) {
                 // Attribute macro
@@ -183,6 +202,9 @@ var Render = module.exports = class {
                     this.items[href] = new Item(this, href, '---\nparent: ' + g.layout + '\ntitle: ' + i + '\n---\n', 'html');
                     this.items[href].config.local = this.attributes[g.attribute][i];
                 }
+            }
+            for(let i of this.macros) {
+                this.macros[i](g);
             }
         }
     }
@@ -214,7 +236,6 @@ var Render = module.exports = class {
 }
 
 // Now for command line stuff
-
 if (require.main === module) {
     let pth = process.argv.pop();
     let opt = process.argv.pop();

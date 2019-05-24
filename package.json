@@ -15,5 +15,9 @@
   "bugs": {
     "url": "https://github.com/modamodamoda/StatiCTON/issues"
   },
-  "homepage": "https://github.com/modamodamoda/StatiCTON#readme"
+  "homepage": "https://github.com/modamodamoda/StatiCTON#readme",
+  "dependencies": {
+    "js-yaml": "^3.13.1",
+    "showdown": "^1.9.0"
+  }
 }
