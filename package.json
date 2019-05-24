@@ -1,0 +1,19 @@
+{
+  "name": "staticton",
+  "version": "0.0.1",
+  "description": "A static site renderer",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/modamodamoda/StatiCTON.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/modamodamoda/StatiCTON/issues"
+  },
+  "homepage": "https://github.com/modamodamoda/StatiCTON#readme"
+}
