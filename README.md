@@ -13,7 +13,7 @@ The configuration format is stored in a file called `objects.yml` in the build d
 
 ### From the command line
 
-You can simply run it from the commandline directly using `./index.js -d [build_dir]`, if [build_dir] is not specified, it will just take the current directory.
+You can simply run it from the commandline directly using `node ./index.js -d [build_dir]`, if [build_dir] is not specified, it will just take the current directory.
 
 ### As a library
 
