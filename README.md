@@ -37,7 +37,40 @@ This tells staticton not to build to files, but instead write to a variable call
 
 So simple! This way, you can serve your data right from memory however you want, and even rebuild it on the fly by calling `all` again. This is useful if you have a frontend site which consits of mixed static and dynamic pages, or if you simply want to serve it straight out of the RAM.
 
+### Templating engine
+
+Templates have a simple format.
+
+`{{ variable }}` displays a variable
+
+`{% statement %}` performs a statement.
+
+#### Example statements
+
+`{% for x in/of y %}` same as JS `for ( let x in/of y )`
+`{% foreach x as v, i %}` same as JS `x.forEach(v, i)`
+`{% end/endfor/endif %}` is simply replaced with a finishing curly bracket
+`{% endforeach %}` closes a foreach statement
+`{% if x == y %}` `if(x == y)`, you also have `{% else %}` and `{% elseif x == y %}`
+
+### API
+
+The renderer class has a member called `globals` which contains variables which are accessible within templates. You can define your own, too. Built in ones includes:
+
+`route(url)`
+
+This generates a full URL for the relative `url`.
+
+`where(pages, statement).pages`
+
+This queries a pages object with the callback 'statement,' which is passed to Array.filter. This actually returns a 'query' class on which you can perform further `sort` or `where` transformations, then .pages contains the current list of available pages.
+
+`sort(pages, statement).pages`
+
+The same as where but passes the statement to Array.sort.
+
 ### Example repository
 
 To be honest, there is much more to it than this. But until I write a proper documentation for the site templating system itself, I invite you to head over to the repo of my personal site's source to review how you could set up a build directory.
-    
+
+[Go to the repository](https://github.com/modamodamoda/GithubPagesSrc)
