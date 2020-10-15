@@ -1,5 +1,5 @@
 {
-  "name": "staticton",
+  "name": "@jlpenny/staticton",
   "version": "0.0.1",
   "description": "A static site renderer",
   "main": "index.js",
@@ -17,7 +17,7 @@
   },
   "homepage": "https://github.com/modamodamoda/StatiCTON#readme",
   "dependencies": {
-    "js-yaml": "^3.13.1",
-    "showdown": "^1.9.0"
+    "js-yaml": "^3.14.0",
+    "showdown": "^1.9.1"
   }
 }
