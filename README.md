@@ -3,7 +3,7 @@ A javascript static site generator
 
 ## What is it?
 
-StatiCTON is an easy to use static site generator, similar to Jekyll. Coming in at under 250 lines of code, it's surpringly powerful.
+StatiCTON is an easy to use static site generator, similar to Jekyll. Coming in at under 300 lines of code, it's surpringly powerful.
 
 ## How to use
 
