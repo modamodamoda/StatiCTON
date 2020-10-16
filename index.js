@@ -5,8 +5,7 @@
 (4) Profit
 */
 
-const yaml = require('js-yaml'), showdown = require('showdown'), fs = require('fs'), path = require('path');
-const converter = new showdown.Converter();
+const yaml = require('js-yaml'), showdown = require('showdown'), fs = require('fs'), path = require('path'), handlebars = require('handlebars');
 
 function requireCWD(fname) { // stole from SO to deal with middleware requires
     var fullname = fname;
@@ -39,56 +38,6 @@ var walkSync = function(rootDir, dir, filelist) {
     return filelist;
   };
 
-// -- Templater class -- 
-
-class Template {
-    static compile(html) {
-        /* Temple Engine */
-        
-        var renders = [
-            [/^\s*for\s+([^\s]+)\s+in\s+([^$]+)$/im, 'for(let $1 in $2) {'],
-            [/^\s*for\s+([^\s]+)\s+of\s+([^$]+)$/im, 'for(let $1 of $2) {'],
-            [/^\s*foreach\s+([^\s]+)\s+as\s+([^$]+)$/im, '$1.forEach( ( $2 ) => {'],
-            [/^\s*endforeach\s+$/im, '} );'],
-            [/^\s*for\s+([^\s]+)\s+\-\>\s+(.+)$/im, 'for($1 = 0; $1 < $2; $1++) {'],
-            [/^\s*for\s+([^\s]+)\s+\=\s+([^\s]+)\s+\-\>\s+(.+)$/im, 'for($1 = $2; $1 <= $3; $1++) {'],
-            [/^\s*if\s+(.+)$/im, 'if($1) {'],
-            [/^\s*elseif\s+(.+)$/im, '} else if ($1) {'],
-            [/^\s*else\s*$/im, '} else {'],
-            [/^\s*while\s+(.+)$/im, 'while($1) {'],
-            [/^\s*unless\s+(.+)$/im, 'if(!($1)) {'],
-            [/^\s*route\s+(.+)$/im, 'route($1)'],
-            [/^\s*(end|endfor|endif)\s*$/,'}'],
-            [/^\s*d\!(.+)\s*$/, '$1'], // dummy for preventing html entities
-        ];
-        
-        var re = /{({|%)(.*?)(}|%)}/g, reExp = /(^( )?(if|for|else|switch|case|break|{|}))(.*)?/g, reExp2 = /^(.*?)({)( )?$/g, cursor = 0, match;
-        var code = 'var r=[];\n; var _rebind = this; for(var i in this) { if(/^[A-Za-z0-9_]+$/.test(i)) { if(typeof this[i] === "function") { eval("var " + i + " = function() { return _rebind." + i + ".apply(_rebind, arguments); }; "); } else eval("var " + i + " = this." + i); } }\n'; // This makes me feel so dirty.
-        var add = function(line, js, type) {
-            let found = 0;
-            if(js && type == '%') {
-                for(var i = 0; i < renders.length; i++) {
-                    if(line.match(renders[i][0])) 
-                    {
-                        line = line.replace(renders[i][0], renders[i][1]);
-                        found = 1;
-                    }
-                }
-            }
-            js? (code += type != '{' && (line.match(reExp) || line.match(reExp2)) ? line + '\n' : found == 1 ? 'r.push(' + line + ');\n' : 'r.push(' + line + ');\n' ) :
-                (code += line != '' ? 'r.push("' + line.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '");\n' : '');
-            return add;
-        }
-        while(match = re.exec(html)) {
-            add(html.slice(cursor, match.index))(match[2], true, match[1]);
-            cursor = match.index + match[0].length;
-        }
-        add(html.substr(cursor, html.length - cursor));
-        code += 'return r.join("");';
-        return new Function(code.replace(/[\r\t\n]/g, ''));
-        
-    }
-}
 // -- Query class --
 class Query {
     constructor(pages) {
@@ -115,13 +64,13 @@ class Item {
         if(data.substr(0, 3) == '---') {
             // has a configuration
             this.hasConfig = true;
-            let spl = data.split(/---/g, 3); // probably should do this a better way but meh.
+            let spl = data.split(/---/g); // probably should do this a better way but meh.
             if(spl.length < 3) {
                 // invalid document
                 throw 'Document ' + filename + ' is invalid!';
             }
             this.config = yaml.safeLoad(spl[1]);
-            this.content = spl[2];
+            this.content = spl.slice(2).join("---"); // use regex instead?
         } else {
             this.content = data; // just straight data with no context
             this.hasConfig = false;
@@ -130,26 +79,32 @@ class Item {
         let hrefParts = href.split('/');
         hrefParts.pop();
         this.config.pathname = hrefParts.join('/'); // Have the pathname for filter purposes
+        if(this.config.partial) {
+            // this is a template partial
+            parent.compiler.registerPartial(this.config.name, this.content);
+            this.config.build = false; // don't build partials
+        }
         for(let i in this.config) {
             if(this.parent.attributes[i] === undefined) this.parent.attributes[i] = {};
             if(this.parent.attributes[i][this.config[i]] === undefined) this.parent.attributes[i][this.config[i]] = [this];
             else this.parent.attributes[i][this.config[i]].push(this);
         }
         this.type = type; // Markdown or HTML
-        if(this.type == 'md') { // render content from markdown
-            this.content = converter.makeHtml(this.content);
-        }
     }
     render(options = {}, children = null, first = true) {
         if(first) options = Object.assign(options, { href: this.href, page: this.config }); // defaults (need to be passed to parent)
+        let s = this.parent.compiler.compile(this.content)(Object.assign(this.parent.config, options, { children: () => children }), {allowProtoMethodsByDefault: true});
+        if(this.type == 'md') { // next, do markdown
+            s = this.parent.showdown.makeHtml(s);
+        }
 
-        let s = Template.compile(this.content).apply(Object.assign(this.parent.config, options, { children: children }));
         if(this.hasConfig && this.config.parent) {
             return this.parent.items[this.config.parent].render(options, s, false); // render within parent
         } else
             return s; // Just return as-is
     }
 }
+
 // -- The actual stuff
 var Render = module.exports = class {
     async emitMiddleware(type, ...args) {
@@ -159,36 +114,29 @@ var Render = module.exports = class {
         }
         return;
     }
-    constructor(dir, config = 'objects.yml') {
-        this.dir = dir;
+    addHelpers() {
+        this.compiler.registerHelper('route', (relative) => (this.config.urlBase ? this.config.urlBase : '') + relative);
+        this.compiler.registerHelper('headTitle', (appendix) => this.config.titleBase.replace('%title', appendix));
+        this.compiler.registerHelper('where', (v, smt) => {
+            let q = new Query(v);
+            return q.where(smt);
+        });
+        this.compiler.registerHelper('sort', (v, smt) => {
+            let q = new Query(v);
+            return q.sort(smt);
+        });
+    }
+    constructor(dir, config = 'objects.yml', opts = {}) {
+        this.dir = path.resolve(dir);
         this.config = {};
         this.items = {};
         this.attributes = {};
         this.output = {};
         this.configFile = config;
         this._middleware = { 'file': [], 'after': [] };
-        this.globals = {
-            route: (relative) => {
-                let base = (this.config.urlBase ? this.config.urlBase : '') + relative;
-                let parts = base.split('/');
-                let baseName = parts.pop();
-                if(baseName == 'index.html') { 
-                    base = parts.join('/') + '/'; // this is the index.html route
-                }
-                return base;
-            },
-            headTitle: (appendix) => {
-                return this.config.titleBase.replace('%title', appendix);
-            },
-            where: (v, smt) => {
-                let q = new Query(v);
-                return q.where(smt);
-            },
-            sort: (v, smt) => {
-                let q = new Query(v);
-                return q.sort(smt);
-            }
-        };
+        this.compiler = opts.compiler || handlebars;
+        this.showdown = opts.showdown || new showdown.Converter();
+        this.addHelpers();
         this.macros = [];
     }
     // middleware(type, callback) adds a middleware
@@ -202,6 +150,13 @@ var Render = module.exports = class {
             let configData = fs.readFileSync(this.dir + '/' + this.configFile);
             // this is the main yaml configuration
             this.config = yaml.safeLoad(configData.toString());
+            if(this.config.base && this.config.base[0] != '/') {
+                // if base is not fully qualified, add it to this.dir
+                this.config.base = this.dir + '/' + this.config.base;
+            }
+            if(this.config.source && this.config.source[0] != '/') {
+                this.config.source = this.dir + '/' + this.config.source;
+            }
         } catch(e) {
             throw 'Error: objects file not found or is not valid YAML';
         }
@@ -216,7 +171,7 @@ var Render = module.exports = class {
     }
     // loadItems() loads the items
     async loadItems() {
-        let allFiles = walkSync(this.dir);
+        let allFiles = walkSync(this.config.source || this.dir);
         for(let i of allFiles) {
             // Process all files
             if(i.fileType == 'html' || i.fileType == 'md') {
@@ -237,8 +192,29 @@ var Render = module.exports = class {
                     // Purpose: iterates all available attributes in a page, and generates a page for each
                     for(let i in this.attributes[g.attribute]) {
                         let href = g.href.replace('%value', i.toLowerCase());
-                        this.items[href] = new Item(this, href, '---\nparent: ' + g.layout + '\ntitle: ' + i + '\n---\n', 'html');
-                        this.items[href].config.local = this.attributes[g.attribute][i];
+                        let collection = this.attributes[g.attribute][i];
+                        // Sort the collection if required
+                        if(g.sortby) collection = collection.sort((a, b) => {
+                            if (a.config[g.sortby] < b.config[g.sortby])
+                                return g.sortorder == 'desc' ? 1 : -1;
+                              if (a.config[g.sortby] > b.config[g.sortby])
+                                return g.sortorder == 'desc' ? - 1 : 1;
+                              return 0;
+                        });
+                        // Pagination stuff
+                        if(g.paginate) {
+                            let total = Math.ceil(collection.length / g.paginate), pagenum = 1; // total pages
+                            for(let c = 0; c < collection.length; c = c + g.paginate) {
+                                const newHR = href.replace('%pagenum', pagenum == 1 ? '' : pagenum);
+                                this.items[newHR] = new Item(this, href.replace('%pagenum', pagenum == 1 ? '' : pagenum), '---\nparent: ' + g.layout + '\ntitle: ' + i + ' page ' + pagenum + '\n---\n', 'html');
+                                this.items[newHR].config.local = collection.slice(c, c + g.paginate);
+                                this.items[newHR].config.pagination = { pagenum: pagenum, total: total };
+                                pagenum++;
+                            }
+                        } else {
+                            this.items[href] = new Item(this, href, '---\nparent: ' + g.layout + '\ntitle: ' + i + '\n---\n', 'html');
+                            this.items[href].config.local = collection;
+                        }
                     }
                 }
                 for(let i of this.macros) {
@@ -256,12 +232,12 @@ var Render = module.exports = class {
                 let dirs = this.items[g].href.split('/');
                 dirs.pop();
                 let page = {
-                    data: this.items[g].render(Object.assign( { pages: this.items }, this.globals)),
+                    data: this.items[g].render({ pages: this.items }),
                     config: this.items[g].config,
-                    globals:this.globals,
                     name: g };
                 await this.emitMiddleware('after', page);
                 if(write) {
+                    console.log(' [build] Writing file ' + this.config.base + '/' + this.items[g].href + '...');
                     fs.mkdir(this.config.base + '/' + dirs.join('/'), { recursive: true }, (err) => {
                         if (err) throw err;
                         fs.writeFileSync(this.config.base + '/' + this.items[g].href, page.data);
@@ -279,18 +255,4 @@ var Render = module.exports = class {
         await this.loadItems();
         await this.build(write);
     }
-}
-
-// Now for command line stuff
-if (require.main === module) {
-    let buildDir;
-    let opts = {};
-    let co;
-    if(process.argv && process.argv.length > 0) {
-       while(co = process.argv.shift()) {
-          if(co[0] == '-') opts[co.substr(1)] = process.argv.shift();
-       }
-    }
-    if(opts['d']) process.chdir(opts['d']);
-    new Render('.', opts['c'] || 'objects.yml').all();
 }
